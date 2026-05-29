@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Sparkles } from "lucide-react";
 
 interface JadwalItem {
   title: string;
@@ -13,6 +13,74 @@ interface JadwalItem {
 export default function AiInput({ onAdd }: { onAdd: (item: JadwalItem) => void }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
+  const mulaiBicara = () => {
+    const SpeechRecognitionCtor =
+      (window as Window & {
+        SpeechRecognition?: new () => any;
+        webkitSpeechRecognition?: new () => any;
+      }).SpeechRecognition ||
+      (window as Window & {
+        SpeechRecognition?: new () => any;
+        webkitSpeechRecognition?: new () => any;
+      }).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) {
+      alert("Browser kamu tidak mendukung fitur suara.");
+      return;
+    }
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "id-ID";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const hasilSuara = Array.from(event.results)
+        .map((result: any) => result[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+
+      if (hasilSuara) {
+        setInput(hasilSuara);
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      alert("Suara tidak terdengar, coba lagi.");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  const hentikanBicara = () => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  };
 
   const handleProcess = async () => {
     if (!input.trim()) return;
@@ -51,6 +119,15 @@ export default function AiInput({ onAdd }: { onAdd: (item: JadwalItem) => void }
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/20 backdrop-blur">
       <div className="flex items-center gap-3 rounded-xl bg-slate-950/80 px-3 py-2">
         <Sparkles className="h-5 w-5 text-cyan-300" />
+        <button
+          type="button"
+          className={`rounded-lg p-2 ${isListening ? "bg-red-500 text-white" : "bg-cyan-400 text-slate-950"}`}
+          onClick={isListening ? hentikanBicara : mulaiBicara}
+          aria-label={isListening ? "Berhenti mendengarkan" : "Mulai mendengarkan"}
+          disabled={loading}
+        >
+          {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+        </button>
         <input
           className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
           value={input}
